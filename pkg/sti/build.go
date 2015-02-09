@@ -117,6 +117,7 @@ func (b *Builder) handleContainerError(cerr errors.ContainerError) (*api.Result,
 		}
 		glog.V(2).Infof("Building %s using sti-enabled image", bh.Request().Tag)
 		if err := bh.execute(api.Assemble); err != nil {
+			glog.V(2).Infof("FOOOO\n")
 			switch e := err.(type) {
 			case errors.ContainerError:
 				return nil, errors.NewAssembleError(bh.Request().Tag, e.Output, e)

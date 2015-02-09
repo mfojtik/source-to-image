@@ -12,6 +12,7 @@ import (
 
 	"github.com/openshift/source-to-image/pkg/sti"
 	"github.com/openshift/source-to-image/pkg/sti/api"
+	"github.com/openshift/source-to-image/pkg/sti/build/strategies"
 	"github.com/openshift/source-to-image/pkg/sti/config"
 	"github.com/openshift/source-to-image/pkg/sti/errors"
 	"github.com/openshift/source-to-image/pkg/sti/version"
@@ -92,13 +93,21 @@ func newCmdBuild(req *api.Request) *cobra.Command {
 			checkErr(err)
 			req.Environment = envs
 
-			b, err := sti.NewBuilder(req)
-			checkErr(err)
-			res, err := b.Build()
-			checkErr(err)
-			for _, message := range res.Messages {
-				glog.V(1).Infof(message)
+			if !req.OnBuild {
+				b, err := sti.NewBuilder(req)
+				checkErr(err)
+				_, err = b.Build()
+				checkErr(err)
+			} else {
+				b, err := strategies.NewOnBuild(req)
+				checkErr(err)
+				res, err := b.Build(req)
+				checkErr(err)
+				for _, message := range res.Messages {
+					glog.V(1).Infof(message)
+				}
 			}
+
 		},
 	}
 
@@ -110,6 +119,7 @@ func newCmdBuild(req *api.Request) *cobra.Command {
 	buildCmd.Flags().StringVarP(&(req.ScriptsURL), "scripts", "s", "", "Specify a URL for the assemble and run scripts")
 	buildCmd.Flags().StringVarP(&(req.Location), "location", "l", "", "Specify a destination location for untar operation")
 	buildCmd.Flags().BoolVar(&(req.ForcePull), "forcePull", true, "Always pull the builder image even if it is present locally")
+	buildCmd.Flags().BoolVar(&(req.OnBuild), "onBuild", false, "Execute simple Docker build instead of STI build")
 	buildCmd.Flags().BoolVar(&(req.PreserveWorkingDir), "saveTempDir", false, "Save the temporary directory used by STI instead of deleting it")
 	buildCmd.Flags().BoolVar(&(useConfig), "use-config", false, "Store command line options to .stifile")
 

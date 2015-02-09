@@ -389,7 +389,7 @@ func (d *stiDocker) BuildImage(opts BuildImageOptions) error {
 	dockerOpts := docker.BuildImageOptions{
 		Name:                opts.Name,
 		NoCache:             true,
-		SuppressOutput:      true,
+		SuppressOutput:      false,
 		RmTmpContainer:      true,
 		ForceRmTmpContainer: true,
 		InputStream:         opts.Stdin,
