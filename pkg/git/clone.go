@@ -3,7 +3,7 @@ package git
 import (
 	"path/filepath"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/util"
 )
@@ -23,14 +23,20 @@ func (c *Clone) Download(config *api.Config) error {
 		if len(config.ContextDir) > 0 {
 			targetSourceDir = filepath.Join(config.WorkingDir, "upload", "tmp")
 		}
-		glog.V(2).Infof("Cloning into %s", targetSourceDir)
+		if clog.V(2) {
+			clog.Infof("Cloning into %s", targetSourceDir)
+		}
 		if err := c.Clone(config.Source, targetSourceDir); err != nil {
-			glog.V(1).Infof("Git clone failed: %+v", err)
+			if clog.V(1) {
+				clog.Infof("Git clone failed: %+v", err)
+			}
 			return err
 		}
 
 		if config.Ref != "" {
-			glog.V(1).Infof("Checking out ref %s", config.Ref)
+			if clog.V(1) {
+				clog.Infof("Checking out ref %s", config.Ref)
+			}
 
 			if err := c.Checkout(targetSourceDir, config.Ref); err != nil {
 				return err

@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/build"
 	"github.com/openshift/source-to-image/pkg/build/strategies/sti"
@@ -70,7 +70,9 @@ func (b *OnBuild) SourceTar(config *api.Config) (io.ReadCloser, error) {
 
 // Build executes the ONBUILD kind of build
 func (b *OnBuild) Build(config *api.Config) (*api.Result, error) {
-	glog.V(2).Info("Preparing the source code for build")
+	if clog.V(2) {
+		clog.Info("Preparing the source code for build")
+	}
 	// Change the installation directory for this config to store scripts inside
 	// the application root directory.
 	if err := b.source.Prepare(config); err != nil {
@@ -80,12 +82,16 @@ func (b *OnBuild) Build(config *api.Config) (*api.Result, error) {
 	// If necessary, copy the STI scripts into application root directory
 	b.copySTIScripts(config)
 
-	glog.V(2).Info("Creating application Dockerfile")
+	if clog.V(2) {
+		clog.Info("Creating application Dockerfile")
+	}
 	if err := b.CreateDockerfile(config); err != nil {
 		return nil, err
 	}
 
-	glog.V(2).Info("Creating application source code image")
+	if clog.V(2) {
+		clog.Info("Creating application source code image")
+	}
 	tarStream, err := b.SourceTar(config)
 	if err != nil {
 		return nil, err
@@ -98,12 +104,16 @@ func (b *OnBuild) Build(config *api.Config) (*api.Result, error) {
 		Stdout: os.Stdout,
 	}
 
-	glog.V(2).Info("Building the application source")
+	if clog.V(2) {
+		clog.Info("Building the application source")
+	}
 	if err := b.docker.BuildImage(opts); err != nil {
 		return nil, err
 	}
 
-	glog.V(2).Info("Cleaning up temporary containers")
+	if clog.V(2) {
+		clog.Info("Cleaning up temporary containers")
+	}
 	b.garbage.Cleanup(config)
 
 	imageID, err := b.docker.GetImageID(opts.Name)
@@ -128,8 +138,8 @@ func (b *OnBuild) CreateDockerfile(config *api.Config) error {
 		return err
 	}
 	env, err := scripts.GetEnvironment(config)
-	if err != nil {
-		glog.V(1).Infof("Environment: %v", err)
+	if err != nil && clog.V(1) {
+		clog.Infof("Environment: %v", err)
 	} else {
 		buffer.WriteString(scripts.ConvertEnvironmentToDocker(env))
 	}
@@ -148,11 +158,9 @@ func (b *OnBuild) copySTIScripts(config *api.Config) {
 	scriptsPath := filepath.Join(config.WorkingDir, "upload", "scripts")
 	sourcePath := filepath.Join(config.WorkingDir, "upload", "src")
 	if _, err := b.fs.Stat(filepath.Join(scriptsPath, api.Run)); err == nil {
-		glog.V(3).Infof("Found STI 'run' script, copying to application source dir")
 		b.fs.Copy(filepath.Join(scriptsPath, api.Run), sourcePath)
 	}
 	if _, err := b.fs.Stat(filepath.Join(scriptsPath, api.Assemble)); err == nil {
-		glog.V(3).Infof("Found STI 'assemble' script, copying to application source dir")
 		b.fs.Copy(filepath.Join(scriptsPath, api.Assemble), sourcePath)
 	}
 }

@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 
 	"github.com/openshift/source-to-image/pkg/errors"
 )
@@ -81,7 +81,7 @@ func (t *stiTar) CreateTarStream(dir string, writer io.Writer) error {
 			// if file is a link just writing header info is enough
 			if info.Mode()&os.ModeSymlink != 0 {
 				if err := t.writeTarHeader(tarWriter, dir, path, info); err != nil {
-					glog.Errorf("	Error writing header for %s: %v", info.Name(), err)
+					clog.Errorf("	Error writing header for %s: %v", info.Name(), err)
 				}
 				return nil
 			}
@@ -89,16 +89,16 @@ func (t *stiTar) CreateTarStream(dir string, writer io.Writer) error {
 			// regular files are copied into tar, if accessible
 			file, err := os.Open(path)
 			if err != nil {
-				glog.Errorf("Ignoring file %s: %v", path, err)
+				clog.Errorf("Ignoring file %s: %v", path, err)
 				return nil
 			}
 			defer file.Close()
 			if err := t.writeTarHeader(tarWriter, dir, path, info); err != nil {
-				glog.Errorf("Error writing header for %s: %v", info.Name(), err)
+				clog.Errorf("Error writing header for %s: %v", info.Name(), err)
 				return nil
 			}
 			if _, err = io.Copy(tarWriter, file); err != nil {
-				glog.Errorf("Error copying file %s to tar: %v", path, err)
+				clog.Errorf("Error copying file %s to tar: %v", path, err)
 				return err
 			}
 		}
@@ -106,7 +106,7 @@ func (t *stiTar) CreateTarStream(dir string, writer io.Writer) error {
 	})
 
 	if err != nil {
-		glog.Errorf("Error writing tar: %v", err)
+		clog.Errorf("Error writing tar: %v", err)
 		return err
 	}
 
@@ -130,7 +130,9 @@ func (t *stiTar) writeTarHeader(tarWriter *tar.Writer, dir string, path string, 
 		return err
 	}
 	header.Name = path[1+len(dir):]
-	glog.V(3).Infof("Adding to tar: %s as %s", path, header.Name)
+	if clog.V(3) {
+		clog.Infof("Adding to tar: %s as %s", path, header.Name)
+	}
 	if err = tarWriter.WriteHeader(header); err != nil {
 		return err
 	}
@@ -155,14 +157,14 @@ func (t *stiTar) ExtractTarStream(dir string, reader io.Reader) error {
 				break
 			}
 			if err != nil {
-				glog.Errorf("Error reading next tar header: %v", err)
+				clog.Errorf("Error reading next tar header: %v", err)
 				errorChannel <- err
 				break
 			}
 			if header.FileInfo().IsDir() {
 				dirPath := filepath.Join(dir, header.Name)
 				if err = os.MkdirAll(dirPath, 0700); err != nil {
-					glog.Errorf("Error creating dir %s: %v", dirPath, err)
+					clog.Errorf("Error creating dir %s: %v", dirPath, err)
 					errorChannel <- err
 					break
 				}
@@ -170,12 +172,12 @@ func (t *stiTar) ExtractTarStream(dir string, reader io.Reader) error {
 				fileDir := filepath.Dir(header.Name)
 				dirPath := filepath.Join(dir, fileDir)
 				if err = os.MkdirAll(dirPath, 0700); err != nil {
-					glog.Errorf("Error creating dir %s: %v", dirPath, err)
+					clog.Errorf("Error creating dir %s: %v", dirPath, err)
 					errorChannel <- err
 					break
 				}
 				if err := extractFile(dir, header, tarReader); err != nil {
-					glog.Errorf("Error extracting file %s: %v", header.Name, err)
+					clog.Errorf("Error extracting file %s: %v", header.Name, err)
 					errorChannel <- err
 				}
 			}
@@ -186,9 +188,9 @@ func (t *stiTar) ExtractTarStream(dir string, reader io.Reader) error {
 		select {
 		case err := <-errorChannel:
 			if err != nil {
-				glog.Errorf("Error extracting tar stream")
-			} else {
-				glog.V(2).Infof("Done extracting tar stream")
+				clog.Errorf("Error extracting tar stream")
+			} else if clog.V(2) {
+				clog.Infof("Done extracting tar stream")
 			}
 			return err
 		case <-timeoutTimer.C:
@@ -199,7 +201,9 @@ func (t *stiTar) ExtractTarStream(dir string, reader io.Reader) error {
 
 func extractFile(dir string, header *tar.Header, tarReader io.Reader) error {
 	path := filepath.Join(dir, header.Name)
-	glog.V(3).Infof("Creating %s", path)
+	if clog.V(3) {
+		clog.Infof("Creating %s", path)
+	}
 
 	file, err := os.Create(path)
 	// The file times need to be modified after it's been closed thus this function
@@ -209,7 +213,9 @@ func extractFile(dir string, header *tar.Header, tarReader io.Reader) error {
 	if err != nil {
 		return err
 	}
-	glog.V(3).Infof("Extracting/writing %s", path)
+	if clog.V(3) {
+		clog.Infof("Extracting/writing %s", path)
+	}
 	written, err := io.Copy(file, tarReader)
 	if err != nil {
 		return err
@@ -221,6 +227,8 @@ func extractFile(dir string, header *tar.Header, tarReader io.Reader) error {
 		return err
 	}
 
-	glog.V(3).Infof("Done with %s", path)
+	if clog.V(3) {
+		clog.Infof("Done with %s", path)
+	}
 	return nil
 }

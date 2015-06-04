@@ -6,80 +6,60 @@
 	],
 	"Deps": [
 		{
-			"ImportPath": "github.com/Sirupsen/logrus",
-			"Comment": "v0.7.3",
-			"Rev": "55eb11d21d2a31a3cc93838241d04800f52e823d"
+			"ImportPath": "github.com/biogo/store/interval",
+			"Rev": "e1f74b3c58befe661feed7fa4cf52436de753128"
+		},
+		{
+			"ImportPath": "github.com/biogo/store/llrb",
+			"Rev": "e1f74b3c58befe661feed7fa4cf52436de753128"
+		},
+		{
+			"ImportPath": "github.com/cockroachdb/cockroach/proto",
+			"Comment": "alpha-2754-g84ece89",
+			"Rev": "84ece8926d58f9c67fc610aeda9e23deb247b238"
+		},
+		{
+			"ImportPath": "github.com/cockroachdb/cockroach/util",
+			"Comment": "alpha-2754-g84ece89",
+			"Rev": "84ece8926d58f9c67fc610aeda9e23deb247b238"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/builder/command",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
+			"Comment": "v1.4.1-3485-g9c5635a",
+			"Rev": "9c5635a2a08029d440aca6179fb5cd1ffcda6f0e"
 		},
 		{
 			"ImportPath": "github.com/docker/docker/builder/parser",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/archive",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/fileutils",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/ioutils",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/pools",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/promise",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/system",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/pkg/units",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
-		},
-		{
-			"ImportPath": "github.com/docker/docker/vendor/src/code.google.com/p/go/src/pkg/archive/tar",
-			"Comment": "v1.4.1-2754-ga313b72",
-			"Rev": "a313b729e48d0ca9d0085f407b136def162eaf4c"
+			"Comment": "v1.4.1-3485-g9c5635a",
+			"Rev": "9c5635a2a08029d440aca6179fb5cd1ffcda6f0e"
 		},
 		{
 			"ImportPath": "github.com/fsouza/go-dockerclient",
-			"Comment": "0.2.1-461-g09334c5",
-			"Rev": "09334c56c63bab2cd6c4ccab924d89e2419a361f"
+			"Rev": "7b927cb79baf026dd14d1c507033c33e5cf74eed"
 		},
 		{
-			"ImportPath": "github.com/golang/glog",
-			"Rev": "d1c4472bf2efd3826f2b5bdcc02d8416798d678c"
-		},
-		{
-			"ImportPath": "github.com/spf13/cobra",
-			"Rev": "bba56042cf767e329430e7c7f68c3f9f640b4b8b"
-		},
-		{
-			"ImportPath": "github.com/spf13/pflag",
-			"Rev": "8730624c6c03fa1c5b8ae471cb5e4d735784d32a"
+			"ImportPath": "github.com/gogo/protobuf/proto",
+			"Rev": "b9e369e8ffb6773efc654ea13594566404314ee1"
 		},
 		{
 			"ImportPath": "github.com/inconshreveable/mousetrap",
 			"Rev": "76626ae9c91c4f2a10f34cad8ce83ea42c93bb75"
 		},
+		{
+			"ImportPath": "github.com/spf13/cobra",
+			"Rev": "8f5946caaeeff40a98d67f60c25e89c3525038a3"
+		},
+		{
+			"ImportPath": "github.com/spf13/pflag",
+			"Rev": "5644820622454e71517561946e3d94b9f9db6842"
+		},
+		{
+			"ImportPath": "golang.org/x/net/context",
+			"Rev": "a8c61998a557a37435f719980da368469c10bfed"
+		},
+		{
+			"ImportPath": "gopkg.in/yaml.v1",
+			"Rev": "9f9df34309c04878acc86042b16630b0f696e1de"
+		}
 	]
 }

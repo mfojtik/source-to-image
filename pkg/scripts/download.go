@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 
 	"github.com/openshift/source-to-image/pkg/errors"
 )
@@ -46,14 +46,14 @@ func (d *downloader) Download(url *url.URL, targetFile string) error {
 	schemeReader := d.schemeReaders[url.Scheme]
 
 	if schemeReader == nil {
-		glog.Errorf("No URL handler found for %s", url.String())
+		clog.Errorf("No URL handler found for %s", url.String())
 		return errors.NewURLHandlerError(url.String())
 	}
 
 	reader, err := schemeReader.Read(url)
 	if err != nil {
-		if e, ok := err.(errors.Error); ok && e.ErrorCode == errors.ScriptsInsideImageError {
-			glog.V(2).Infof("Using image internal scripts from: %s", url.String())
+		if e, ok := err.(errors.Error); ok && e.ErrorCode == errors.ScriptsInsideImageError && clog.V(2) {
+			clog.Infof("Using image internal scripts from: %s", url.String())
 		}
 		return err
 	}
@@ -63,17 +63,19 @@ func (d *downloader) Download(url *url.URL, targetFile string) error {
 	defer out.Close()
 
 	if err != nil {
-		glog.Errorf("Unable to create target file %s (%s)", targetFile, err)
+		clog.Errorf("Unable to create target file %s (%s)", targetFile, err)
 		return err
 	}
 
 	if _, err = io.Copy(out, reader); err != nil {
 		os.Remove(targetFile)
-		glog.Warningf("Skipping file %s due to error copying from source: %s", targetFile, err)
+		clog.Warningf("Skipping file %s due to error copying from source: %s", targetFile, err)
 		return err
 	}
 
-	glog.V(2).Infof("Downloaded '%s'", url.String())
+	if clog.V(2) {
+		clog.Infof("Downloaded '%s'", url.String())
+	}
 	return nil
 }
 

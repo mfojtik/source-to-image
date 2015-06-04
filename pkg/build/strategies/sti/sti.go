@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/build"
 	"github.com/openshift/source-to-image/pkg/build/strategies/layered"
@@ -109,32 +109,42 @@ func New(req *api.Config) (*STI, error) {
 func (b *STI) Build(config *api.Config) (*api.Result, error) {
 	defer b.garbage.Cleanup(config)
 
-	glog.V(1).Infof("Building %s", config.Tag)
+	if clog.V(1) {
+		clog.Infof("Building %s", config.Tag)
+	}
 	if err := b.preparer.Prepare(config); err != nil {
 		return nil, err
 	}
 
 	if b.incremental = b.artifacts.Exists(config); b.incremental {
-		glog.V(1).Infof("Existing image for tag %s detected for incremental build", config.Tag)
-	} else {
-		glog.V(1).Infof("Clean build will be performed")
+		if clog.V(1) {
+			clog.Infof("Existing image for tag %s detected for incremental build", config.Tag)
+		}
+	} else if clog.V(1) {
+		clog.Infof("Clean build will be performed")
 	}
 
-	glog.V(2).Infof("Performing source build from %s", config.Source)
+	if clog.V(2) {
+		clog.Infof("Performing source build from %s", config.Source)
+	}
 	if b.incremental {
 		if err := b.artifacts.Save(config); err != nil {
-			glog.Warningf("Clean build will be performed becase of error saving previous build artifacts: %v", err)
+			clog.Warningf("Clean build will be performed becase of error saving previous build artifacts: %v", err)
 		}
 	}
 
-	glog.V(1).Infof("Building %s", config.Tag)
+	if clog.V(1) {
+		clog.Infof("Building %s", config.Tag)
+	}
 	if err := b.scripts.Execute(api.Assemble, config); err != nil {
 		switch e := err.(type) {
 		case errors.ContainerError:
 			if !isMissingRequirements(e.Output) {
 				return nil, err
 			}
-			glog.V(1).Info("Image is missing basic requirements (sh or tar), layered build will be performed")
+			if clog.V(1) {
+				clog.Info("Image is missing basic requirements (sh or tar), layered build will be performed")
+			}
 			return b.layered.Build(config)
 		default:
 			return nil, err
@@ -179,12 +189,14 @@ func (b *STI) Prepare(config *api.Config) error {
 
 	for _, r := range append(required, optional...) {
 		if r.Error == nil {
-			glog.V(1).Infof("Using %v from %s", r.Script, r.URL)
+			if clog.V(1) {
+				clog.Infof("Using %v from %s", r.Script, r.URL)
+			}
 			b.externalScripts[r.Script] = r.Downloaded
 			b.installedScripts[r.Script] = r.Installed
 			b.scriptsURL[r.Script] = r.URL
 		} else {
-			glog.Warningf("Error getting %v from %s: %v", r.Script, r.URL, r.Error)
+			clog.Warningf("Error getting %v from %s: %v", r.Script, r.URL, r.Error)
 		}
 	}
 
@@ -207,13 +219,13 @@ func (b *STI) PostExecute(containerID, location string) error {
 
 	if b.incremental && b.config.RemovePreviousImage {
 		if previousImageID, err = b.docker.GetImageID(b.config.Tag); err != nil {
-			glog.Errorf("Error retrieving previous image's metadata: %v", err)
+			clog.Errorf("Error retrieving previous image's metadata: %v", err)
 		}
 	}
 
 	env, err := scripts.GetEnvironment(b.config)
-	if err != nil {
-		glog.V(1).Infof("No .sti/environment provided (%v)", err)
+	if err != nil && clog.V(1) {
+		clog.Infof("No .sti/environment provided (%v)", err)
 	}
 
 	buildEnv := append(scripts.ConvertEnvironment(env), b.generateConfigEnv()...)
@@ -242,16 +254,20 @@ func (b *STI) PostExecute(containerID, location string) error {
 	b.result.Success = true
 	b.result.ImageID = imageID
 
-	if len(b.config.Tag) > 0 {
-		glog.V(1).Infof("Successfully built %s", b.config.Tag)
-	} else {
-		glog.V(1).Infof("Successfully built %s", imageID)
+	if clog.V(1) {
+		if len(b.config.Tag) > 0 {
+			clog.Infof("Successfully built %s", b.config.Tag)
+		} else {
+			clog.Infof("Successfully built %s", imageID)
+		}
 	}
 
 	if b.incremental && b.config.RemovePreviousImage && previousImageID != "" {
-		glog.V(1).Infof("Removing previously-tagged image %s", previousImageID)
+		if clog.V(1) {
+			clog.Infof("Removing previously-tagged image %s", previousImageID)
+		}
 		if err = b.docker.RemoveImage(previousImageID); err != nil {
-			glog.Errorf("Unable to remove previous image: %v", err)
+			clog.Errorf("Unable to remove previous image: %v", err)
 		}
 	}
 
@@ -295,7 +311,9 @@ func (b *STI) Save(config *api.Config) (err error) {
 	errReader, errWriter := io.Pipe()
 	defer errReader.Close()
 	defer errWriter.Close()
-	glog.V(1).Infof("Saving build artifacts from image %s to path %s", image, artifactTmpDir)
+	if clog.V(1) {
+		clog.Infof("Saving build artifacts from image %s to path %s", image, artifactTmpDir)
+	}
 	extractFunc := func() error {
 		defer outReader.Close()
 		return b.tar.ExtractTarStream(artifactTmpDir, outReader)
@@ -323,11 +341,13 @@ func (b *STI) Save(config *api.Config) (err error) {
 
 // Execute runs the specified STI script in the builder image.
 func (b *STI) Execute(command string, config *api.Config) error {
-	glog.V(2).Infof("Using image name %s", config.BuilderImage)
+	if clog.V(2) {
+		clog.Infof("Using image name %s", config.BuilderImage)
+	}
 
 	env, err := scripts.GetEnvironment(config)
-	if err != nil {
-		glog.V(1).Infof("No .sti/environment provided (%v)", err)
+	if err != nil && clog.V(1) {
+		clog.Infof("No .sti/environment provided (%v)", err)
 	}
 
 	buildEnv := append(scripts.ConvertEnvironment(env), b.generateConfigEnv()...)
@@ -379,13 +399,13 @@ func (b *STI) Execute(command string, config *api.Config) error {
 			if err != nil {
 				// we're ignoring ErrClosedPipe, as this is information
 				// the docker container ended streaming logs
-				if glog.V(2) && err != io.ErrClosedPipe {
-					glog.Errorf("Error reading docker stdout, %v", err)
+				if clog.V(2) && err != io.ErrClosedPipe {
+					clog.Errorf("Error reading docker stdout, %v", err)
 				}
 				break
 			}
-			if glog.V(2) || config.Quiet != true || command == api.Usage {
-				glog.Info(text)
+			if clog.V(2) || config.Quiet != true || command == api.Usage {
+				clog.Info(text)
 			}
 		}
 	}(outReader)
@@ -407,11 +427,11 @@ func streamContainerError(errStream io.Reader, errOutput *string, config *api.Co
 			// we're ignoring ErrClosedPipe, as this is information
 			// the docker container ended streaming logs
 			if err != io.ErrClosedPipe {
-				glog.Errorf("Error reading docker stderr, %v", err)
+				clog.Errorf("Error reading docker stderr, %v", err)
 			}
 			break
 		}
-		glog.Error(text)
+		clog.Error(text)
 		if errOutput != nil && len(*errOutput) < maxErrorOutput {
 			*errOutput += text + "\n"
 		}

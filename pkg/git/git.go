@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/util"
 )
 
@@ -75,8 +75,8 @@ func (h *stiGit) Clone(source, target string) error {
 		Stdout: outWriter,
 		Stderr: errWriter,
 	}
-	go pipeToLog(outReader, glog.Info)
-	go pipeToLog(errReader, glog.Error)
+	go pipeToLog(outReader, clog.Info)
+	go pipeToLog(errReader, clog.Error)
 	return h.runner.RunWithOptions(opts, "git", "clone", "--quiet", "--recursive", source, target)
 }
 
@@ -95,7 +95,7 @@ func pipeToLog(reader io.Reader, log func(...interface{})) {
 	for {
 		if text, err := scanner.ReadString('\n'); err != nil {
 			if err != io.ErrClosedPipe {
-				glog.Errorf("Error reading stdout, %v", err)
+				clog.Errorf("Error reading stdout, %v", err)
 			}
 			break
 		} else {

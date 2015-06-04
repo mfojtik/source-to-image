@@ -5,8 +5,8 @@ import (
 	"io"
 	"strings"
 
+	clog "github.com/cockroachdb/cockroach/util/log"
 	client "github.com/fsouza/go-dockerclient"
-	"github.com/golang/glog"
 )
 
 // DockerImageReference points to a Docker image.
@@ -27,11 +27,15 @@ func GetImageRegistryAuth(dockerCfg io.Reader, imageName string) client.AuthConf
 	}
 	if auths, err := client.NewAuthConfigurations(dockerCfg); err == nil {
 		if auth, ok := auths.Configs[spec.Registry]; ok {
-			glog.V(5).Infof("Using %s[%s] credentials for pulling %s", auth.Email, spec.Registry, imageName)
+			if clog.V(5) {
+				clog.Infof("Using %s[%s] credentials for pulling %s", auth.Email, spec.Registry, imageName)
+			}
 			return auth
 		}
 		if auth, ok := auths.Configs[defaultRegistry]; ok {
-			glog.V(5).Infof("Using %s credentials for pulling %s", auth.Email, imageName)
+			if clog.V(5) {
+				clog.Infof("Using %s credentials for pulling %s", auth.Email, imageName)
+			}
 			return auth
 		}
 	}

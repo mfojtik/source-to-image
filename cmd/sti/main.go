@@ -7,11 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strings"
 	"syscall"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
@@ -94,7 +95,7 @@ func newCmdBuild(cfg *api.Config) *cobra.Command {
 							defer file.Close()
 							file.Write(buf)
 						}
-						glog.Infof("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end\n", buf)
+						clog.Infof("=== received SIGQUIT ===\n*** goroutine dump...\n%s\n*** end\n", buf)
 					}
 				}
 			}()
@@ -133,7 +134,7 @@ func newCmdBuild(cfg *api.Config) *cobra.Command {
 			if len(cfg.EnvironmentFile) > 0 {
 				result, err := util.ReadEnvironmentFile(cfg.EnvironmentFile)
 				if err != nil {
-					glog.Warningf("Unable to read %s: %v", cfg.EnvironmentFile, err)
+					clog.Warningf("Unable to read %s: %v", cfg.EnvironmentFile, err)
 				} else {
 					cfg.Environment = result
 				}
@@ -146,15 +147,15 @@ func newCmdBuild(cfg *api.Config) *cobra.Command {
 			}
 
 			if len(oldScriptsFlag) != 0 {
-				glog.Warning("Flag --scripts is deprecated, use --scripts-url instead")
+				clog.Warning("Flag --scripts is deprecated, use --scripts-url instead")
 				cfg.ScriptsURL = oldScriptsFlag
 			}
 			if len(oldDestination) != 0 {
-				glog.Warning("Flag --location is deprecated, use --destination instead")
+				clog.Warning("Flag --location is deprecated, use --destination instead")
 				cfg.Destination = oldDestination
 			}
 
-			if glog.V(2) {
+			if clog.V(2) {
 				fmt.Printf("\n%s\n", describe.DescribeConfig(cfg))
 			}
 			builder, err := strategies.GetStrategy(cfg)
@@ -163,7 +164,9 @@ func newCmdBuild(cfg *api.Config) *cobra.Command {
 			checkErr(err)
 
 			for _, message := range result.Messages {
-				glog.V(1).Infof(message)
+				if clog.V(1) {
+					clog.Infof(message)
+				}
 			}
 
 		},
@@ -227,7 +230,7 @@ func newCmdUsage(cfg *api.Config) *cobra.Command {
 			cfg.Environment = envs
 
 			if len(oldScriptsFlag) != 0 {
-				glog.Warning("Flag --scripts is deprecated, use --scripts-url instead")
+				clog.Warning("Flag --scripts is deprecated, use --scripts-url instead")
 				cfg.ScriptsURL = oldScriptsFlag
 			}
 
@@ -247,14 +250,33 @@ func newCmdUsage(cfg *api.Config) *cobra.Command {
 	return usageCmd
 }
 
-func setupGlog(flags *pflag.FlagSet) {
+// pflagValue wraps flag.Value and implements the extra methods of the
+// pflag.Value interface.
+type pflagValue struct {
+	flag.Value
+}
+
+func (v pflagValue) Type() string {
+	t := reflect.TypeOf(v.Value).Elem()
+	return t.Kind().String()
+}
+
+func (v pflagValue) IsBoolFlag() bool {
+	t := reflect.TypeOf(v.Value).Elem()
+	return t.Kind() == reflect.Bool
+}
+
+func setupLogging(flags *pflag.FlagSet) {
 	from := flag.CommandLine
-	if fflag := from.Lookup("v"); fflag != nil {
-		level := fflag.Value.(*glog.Level)
-		levelPtr := (*int32)(level)
-		flags.Int32Var(levelPtr, "loglevel", 0, "Set the level of log output (0-3)")
+	if fflag := from.Lookup("verbosity"); fflag != nil {
+		level := pflagValue{fflag.Value}
+		flags.Var(level, "loglevel", "Set the level of log output (0-5)")
 	}
-	// FIXME currently glog has only option to redirect output to stderr
+	if fflag := from.Lookup("color"); fflag != nil {
+		color := pflagValue{fflag.Value}
+		flags.Var(color, "color", "colorize standard error output according to severity")
+	}
+	// FIXME currently clog has only option to redirect output to stderr
 	// the preferred for STI would be to redirect to stdout
 	flag.CommandLine.Set("logtostderr", "true")
 }
@@ -264,17 +286,19 @@ func checkErr(err error) {
 		return
 	}
 	if e, ok := err.(errors.Error); ok {
-		glog.Errorf("An error occurred: %v", e)
-		glog.Errorf("Suggested solution: %v", e.Suggestion)
-		if e.Details != nil {
-			glog.V(1).Infof("Details: %v", e.Details)
+		clog.Errorf("An error occurred: %v", e)
+		clog.Errorf("Suggested solution: %v", e.Suggestion)
+		if e.Details != nil && clog.V(1) {
+			clog.Infof("Details: %v", e.Details)
 		}
-		glog.Error("If the problem persists consult the docs at https://github.com/openshift/source-to-image/tree/master/docs." +
+		clog.Error("If the problem persists consult the docs at https://github.com/openshift/source-to-image/tree/master/docs." +
 			"Eventually reach us on freenode #openshift or file an issue at https://github.com/openshift/source-to-image/issues " +
 			"providing us with a log from your build using --loglevel=3")
 		os.Exit(e.ErrorCode)
 	} else {
-		glog.V(1).Infof("An error occurred: %v", err)
+		if clog.V(1) {
+			clog.Infof("An error occurred: %v", err)
+		}
 		os.Exit(1)
 	}
 }
@@ -300,7 +324,7 @@ func main() {
 	stiCmd.AddCommand(newCmdBuild(cfg))
 	stiCmd.AddCommand(newCmdUsage(cfg))
 	stiCmd.AddCommand(newCmdCreate())
-	setupGlog(stiCmd.PersistentFlags())
+	setupLogging(stiCmd.PersistentFlags())
 
 	err := stiCmd.Execute()
 	if err != nil {

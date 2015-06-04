@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/build"
 	"github.com/openshift/source-to-image/pkg/docker"
@@ -78,7 +78,9 @@ func (b *Layered) CreateDockerfile(config *api.Config) error {
 	if err := b.fs.WriteFile(filepath.Join(uploadDir, "Dockerfile"), buffer.Bytes()); err != nil {
 		return err
 	}
-	glog.V(2).Infof("Writing custom Dockerfile to %s", uploadDir)
+	if clog.V(2) {
+		clog.Infof("Writing custom Dockerfile to %s", uploadDir)
+	}
 	return nil
 }
 
@@ -96,7 +98,9 @@ func (b *Layered) Build(config *api.Config) (*api.Result, error) {
 		return nil, err
 	}
 
-	glog.V(2).Info("Creating application source code image")
+	if clog.V(2) {
+		clog.Info("Creating application source code image")
+	}
 	tarStream, err := b.SourceTar(config)
 	if err != nil {
 		return nil, err
@@ -121,16 +125,20 @@ func (b *Layered) Build(config *api.Config) (*api.Result, error) {
 			if err != nil {
 				// we're ignoring ErrClosedPipe, as this is information
 				// the docker container ended streaming logs
-				if glog.V(2) && err != io.ErrClosedPipe {
-					glog.Errorf("Error reading docker stdout, %v", err)
+				if clog.V(2) && err != io.ErrClosedPipe {
+					clog.Errorf("Error reading docker stdout, %v", err)
 				}
 				break
 			}
-			glog.V(2).Info(text)
+			if clog.V(2) {
+				clog.Info(text)
+			}
 		}
 	}(outReader)
 
-	glog.V(2).Infof("Building new image %s with scripts and sources already inside", newBuilderImage)
+	if clog.V(2) {
+		clog.Infof("Building new image %s with scripts and sources already inside", newBuilderImage)
+	}
 	if err = b.docker.BuildImage(opts); err != nil {
 		return nil, err
 	}
@@ -142,7 +150,9 @@ func (b *Layered) Build(config *api.Config) (*api.Result, error) {
 	// the scripts are inside the image
 	b.config.ScriptsURL = "image://" + filepath.Join(getDestination(config), "scripts")
 
-	glog.V(2).Infof("Building %s using sti-enabled image", b.config.Tag)
+	if clog.V(2) {
+		clog.Infof("Building %s using sti-enabled image", b.config.Tag)
+	}
 	if err := b.scripts.Execute(api.Assemble, b.config); err != nil {
 		switch e := err.(type) {
 		case errors.ContainerError:

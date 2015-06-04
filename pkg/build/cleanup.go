@@ -1,7 +1,7 @@
 package build
 
 import (
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/docker"
 	"github.com/openshift/source-to-image/pkg/util"
@@ -18,13 +18,17 @@ type DefaultCleaner struct {
 // Cleanup removes the temporary directories where the sources were stored for build.
 func (c *DefaultCleaner) Cleanup(config *api.Config) {
 	if config.PreserveWorkingDir {
-		glog.Infof("Temporary directory '%s' will be saved, not deleted", config.WorkingDir)
+		clog.Infof("Temporary directory '%s' will be saved, not deleted", config.WorkingDir)
 	} else {
-		glog.V(2).Infof("Removing temporary directory %s", config.WorkingDir)
+		if clog.V(2) {
+			clog.Infof("Removing temporary directory %s", config.WorkingDir)
+		}
 		c.RemoveDirectory(config.WorkingDir)
 	}
 	if config.LayeredBuild {
-		glog.V(2).Infof("Removing temporary image %s", config.BuilderImage)
+		if clog.V(2) {
+			clog.Infof("Removing temporary image %s", config.BuilderImage)
+		}
 		c.RemoveImage(config.BuilderImage)
 	}
 }

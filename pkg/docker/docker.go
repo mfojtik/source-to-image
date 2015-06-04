@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
+	clog "github.com/cockroachdb/cockroach/util/log"
 	docker "github.com/fsouza/go-dockerclient"
-	"github.com/golang/glog"
 
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/openshift/source-to-image/pkg/errors"
@@ -177,17 +177,23 @@ func (d *stiDocker) CheckAndPull(name string) (image *docker.Image, err error) {
 		return d.PullImage(name)
 	}
 
-	glog.V(2).Infof("Image %s available locally", name)
+	if clog.V(2) {
+		clog.Infof("Image %s available locally", name)
+	}
 	return
 }
 
 // PullImage pulls an image into the local registry
 func (d *stiDocker) PullImage(name string) (image *docker.Image, err error) {
 	name = getImageName(name)
-	glog.V(1).Infof("Pulling image %s", name)
+	if clog.V(1) {
+		clog.Infof("Pulling image %s", name)
+	}
 	// TODO: Add authentication support
 	if err = d.client.PullImage(docker.PullImageOptions{Repository: name}, d.pullAuth); err != nil {
-		glog.V(3).Infof("An error was received from the PullImage call: %v", err)
+		if clog.V(3) {
+			clog.Infof("An error was received from the PullImage call: %v", err)
+		}
 		return nil, errors.NewPullImageError(name, err)
 	}
 	if image, err = d.client.InspectImage(name); err != nil {
@@ -257,14 +263,14 @@ func getScriptsURL(image *docker.Image) string {
 	if len(scriptsURL) == 0 {
 		scriptsURL = getVariable(image, ScriptsURLEnvironment)
 		if len(scriptsURL) != 0 {
-			glog.Warningf("BuilderImage uses deprecated environment variable %s, please migrate it to %s label instead!",
+			clog.Warningf("BuilderImage uses deprecated environment variable %s, please migrate it to %s label instead!",
 				ScriptsURLEnvironment, ScriptsURLLabel)
 		}
 	}
 	if len(scriptsURL) == 0 {
-		glog.Warningf("Image does not contain a value for the %s label", ScriptsURLLabel)
-	} else {
-		glog.V(2).Infof("Image contains %s set to '%s'", ScriptsURLLabel, scriptsURL)
+		clog.Warningf("Image does not contain a value for the %s label", ScriptsURLLabel)
+	} else if clog.V(2) {
+		clog.Infof("Image contains %s set to '%s'", ScriptsURLLabel, scriptsURL)
 	}
 
 	return scriptsURL
@@ -276,7 +282,7 @@ func getDestination(image *docker.Image) string {
 		return val
 	}
 	if val := getVariable(image, LocationEnvironment); len(val) != 0 {
-		glog.Warningf("BuilderImage uses deprecated environment variable %s, please migrate it to %s label instead!",
+		clog.Warningf("BuilderImage uses deprecated environment variable %s, please migrate it to %s label instead!",
 			LocationEnvironment, DestinationLabel)
 		return val
 	}
@@ -297,7 +303,7 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 		imageMetadata, err = d.client.InspectImage(image)
 	}
 	if err != nil {
-		glog.Errorf("Unable to get image metadata for %s: %v", image, err)
+		clog.Errorf("Unable to get image metadata for %s: %v", image, err)
 		return err
 	}
 
@@ -312,7 +318,9 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 		// for external scripts we must always append 'scripts' because this is
 		// the default subdirectory inside tar for them
 		commandBaseDir = filepath.Join(tarDestination, "scripts")
-		glog.V(2).Infof("Both scripts and untarred source will be placed in '%s'", tarDestination)
+		if clog.V(2) {
+			clog.Infof("Both scripts and untarred source will be placed in '%s'", tarDestination)
+		}
 	} else {
 		// for internal scripts we can have separate path for scripts and untar operation destination
 		scriptsURL := opts.ScriptsURL
@@ -320,8 +328,10 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 			scriptsURL = getScriptsURL(imageMetadata)
 		}
 		commandBaseDir = strings.TrimPrefix(scriptsURL, "image://")
-		glog.V(2).Infof("Base directory for STI scripts is '%s'. Untarring destination is '%s'.",
-			commandBaseDir, tarDestination)
+		if clog.V(2) {
+			clog.Infof("Base directory for STI scripts is '%s'. Untarring destination is '%s'.",
+				commandBaseDir, tarDestination)
+		}
 	}
 
 	cmd := []string{filepath.Join(commandBaseDir, string(opts.Command))}
@@ -347,14 +357,18 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 		config.AttachStdout = true
 	}
 
-	glog.V(2).Infof("Creating container using config: %+v", config)
+	if clog.V(2) {
+		clog.Infof("Creating container using config: %+v", config)
+	}
 	container, err := d.client.CreateContainer(docker.CreateContainerOptions{Name: "", Config: &config})
 	if err != nil {
 		return err
 	}
 	defer d.RemoveContainer(container.ID)
 
-	glog.V(2).Infof("Attaching to container")
+	if clog.V(2) {
+		clog.Infof("Attaching to container")
+	}
 	attached := make(chan struct{})
 	attachOpts := docker.AttachToContainerOptions{
 		Container: container.ID,
@@ -379,7 +393,7 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 		wg.Add(1)
 		defer wg.Done()
 		if err := d.client.AttachToContainer(attachOpts); err != nil {
-			glog.Errorf("Unable to attach container with %v", attachOpts)
+			clog.Errorf("Unable to attach container with %v", attachOpts)
 		}
 	}()
 	attached <- <-attached
@@ -405,13 +419,15 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 			wg.Add(1)
 			defer wg.Done()
 			if err := d.client.AttachToContainer(attachOpts2); err != nil {
-				glog.Errorf("Unable to attach container with %v", attachOpts2)
+				clog.Errorf("Unable to attach container with %v", attachOpts2)
 			}
 		}()
 		attached2 <- <-attached2
 	}
 
-	glog.V(2).Infof("Starting container")
+	if clog.V(2) {
+		clog.Infof("Starting container")
+	}
 	if err = d.client.StartContainer(container.ID, nil); err != nil {
 		return err
 	}
@@ -421,19 +437,25 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 		}
 	}
 
-	glog.V(2).Infof("Waiting for container")
+	if clog.V(2) {
+		clog.Infof("Waiting for container")
+	}
 	exitCode, err := d.client.WaitContainer(container.ID)
 	wg.Wait()
 	if err != nil {
 		return err
 	}
-	glog.V(2).Infof("Container exited")
+	if clog.V(2) {
+		clog.Infof("Container exited")
+	}
 
 	if exitCode != 0 {
 		return errors.NewContainerError(container.Name, exitCode, "")
 	}
 	if opts.PostExec != nil {
-		glog.V(2).Infof("Invoking postExecution function")
+		if clog.V(2) {
+			clog.Infof("Invoking postExecution function")
+		}
 		if err = opts.PostExec.PostExecute(container.ID, tarDestination); err != nil {
 			return err
 		}
@@ -466,7 +488,9 @@ func (d *stiDocker) CommitContainer(opts CommitContainerOptions) (string, error)
 			Env: opts.Env,
 		}
 		dockerOpts.Run = &config
-		glog.V(2).Infof("Committing container with config: %+v", config)
+		if clog.V(2) {
+			clog.Infof("Committing container with config: %+v", config)
+		}
 	}
 
 	image, err := d.client.CommitContainer(dockerOpts)

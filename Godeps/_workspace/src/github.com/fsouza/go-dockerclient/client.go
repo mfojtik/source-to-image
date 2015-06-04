@@ -23,6 +23,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/fsouza/go-dockerclient/vendor/github.com/docker/docker/pkg/stdcopy"
 )
 
 const userAgent = "go-dockerclient"
@@ -151,6 +153,18 @@ func NewTLSClient(endpoint string, cert, key, ca string) (*Client, error) {
 	return client, nil
 }
 
+// NewTLSClientFromBytes returns a Client instance ready for TLS communications with the givens
+// server endpoint, key and certificates (passed inline to the function as opposed to being
+// read from a local file). It will use the latest remote API version available in the server.
+func NewTLSClientFromBytes(endpoint string, certPEMBlock, keyPEMBlock, caPEMCert []byte) (*Client, error) {
+	client, err := NewVersionedTLSClientFromBytes(endpoint, certPEMBlock, keyPEMBlock, caPEMCert, "")
+	if err != nil {
+		return nil, err
+	}
+	client.SkipServerVersionCheck = true
+	return client, nil
+}
+
 // NewVersionedClient returns a Client instance ready for communication with
 // the given server endpoint, using a specific remote API version.
 func NewVersionedClient(endpoint string, apiVersionString string) (*Client, error) {
@@ -182,6 +196,25 @@ func NewVersionnedTLSClient(endpoint string, cert, key, ca, apiVersionString str
 // NewVersionedTLSClient returns a Client instance ready for TLS communications with the givens
 // server endpoint, key and certificates, using a specific remote API version.
 func NewVersionedTLSClient(endpoint string, cert, key, ca, apiVersionString string) (*Client, error) {
+	certPEMBlock, err := ioutil.ReadFile(cert)
+	if err != nil {
+		return nil, err
+	}
+	keyPEMBlock, err := ioutil.ReadFile(key)
+	if err != nil {
+		return nil, err
+	}
+	caPEMCert, err := ioutil.ReadFile(ca)
+	if err != nil {
+		return nil, err
+	}
+	return NewVersionedTLSClientFromBytes(endpoint, certPEMBlock, keyPEMBlock, caPEMCert, apiVersionString)
+}
+
+// NewVersionedTLSClientFromBytes returns a Client instance ready for TLS communications with the givens
+// server endpoint, key and certificates (passed inline to the function as opposed to being
+// read from a local file), using a specific remote API version.
+func NewVersionedTLSClientFromBytes(endpoint string, certPEMBlock, keyPEMBlock, caPEMCert []byte, apiVersionString string) (*Client, error) {
 	u, err := parseEndpoint(endpoint, true)
 	if err != nil {
 		return nil, err
@@ -193,23 +226,19 @@ func NewVersionedTLSClient(endpoint string, cert, key, ca, apiVersionString stri
 			return nil, err
 		}
 	}
-	if cert == "" || key == "" {
-		return nil, errors.New("Both cert and key path are required")
+	if certPEMBlock == nil || keyPEMBlock == nil {
+		return nil, errors.New("Both cert and key are required")
 	}
-	tlsCert, err := tls.LoadX509KeyPair(cert, key)
+	tlsCert, err := tls.X509KeyPair(certPEMBlock, keyPEMBlock)
 	if err != nil {
 		return nil, err
 	}
 	tlsConfig := &tls.Config{Certificates: []tls.Certificate{tlsCert}}
-	if ca == "" {
+	if caPEMCert == nil {
 		tlsConfig.InsecureSkipVerify = true
 	} else {
-		cert, err := ioutil.ReadFile(ca)
-		if err != nil {
-			return nil, err
-		}
 		caPool := x509.NewCertPool()
-		if !caPool.AppendCertsFromPEM(cert) {
+		if !caPool.AppendCertsFromPEM(caPEMCert) {
 			return nil, errors.New("Could not add RootCA pem")
 		}
 		tlsConfig.RootCAs = caPool
@@ -438,7 +467,7 @@ func (c *Client) stream(method, path string, streamOptions streamOptions) error 
 		if streamOptions.setRawTerminal {
 			_, err = io.Copy(streamOptions.stdout, resp.Body)
 		} else {
-			_, err = stdCopy(streamOptions.stdout, streamOptions.stderr, resp.Body)
+			_, err = stdcopy.StdCopy(streamOptions.stdout, streamOptions.stderr, resp.Body)
 		}
 		return err
 	}
@@ -509,31 +538,37 @@ func (c *Client) hijack(method, path string, hijackOptions hijackOptions) error 
 	}
 	rwc, br := clientconn.Hijack()
 	defer rwc.Close()
-	errs := make(chan error, 2)
+	errChanOut := make(chan error, 1)
+	errChanIn := make(chan error, 1)
 	exit := make(chan bool)
 	go func() {
 		defer close(exit)
+		defer close(errChanOut)
 		var err error
 		if hijackOptions.setRawTerminal {
 			// When TTY is ON, use regular copy
 			_, err = io.Copy(hijackOptions.stdout, br)
 		} else {
-			_, err = stdCopy(hijackOptions.stdout, hijackOptions.stderr, br)
+			_, err = stdcopy.StdCopy(hijackOptions.stdout, hijackOptions.stderr, br)
 		}
-		errs <- err
+		errChanOut <- err
 	}()
 	go func() {
-		var err error
 		if hijackOptions.in != nil {
-			_, err = io.Copy(rwc, hijackOptions.in)
+			_, err := io.Copy(rwc, hijackOptions.in)
+			errChanIn <- err
 		}
 		rwc.(interface {
 			CloseWrite() error
 		}).CloseWrite()
-		errs <- err
 	}()
 	<-exit
-	return <-errs
+	select {
+	case err = <-errChanIn:
+		return err
+	case err = <-errChanOut:
+		return err
+	}
 }
 
 func (c *Client) getURL(path string) string {

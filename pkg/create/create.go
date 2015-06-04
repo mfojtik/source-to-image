@@ -4,7 +4,7 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/create/templates"
 )
 
@@ -44,16 +44,16 @@ func (b *Bootstrap) AddTests() {
 func (b *Bootstrap) process(t string, dst string) {
 	tpl := template.Must(template.New("").Parse(t))
 	if _, err := os.Stat(b.DestinationDir + "/" + dst); err == nil {
-		glog.Errorf("File already exists: %s, skipping", dst)
+		clog.Errorf("File already exists: %s, skipping", dst)
 		return
 	}
 	f, err := os.Create(b.DestinationDir + "/" + dst)
 	if err != nil {
-		glog.Errorf("Unable to create %s file, skipping: %v", dst, err)
+		clog.Errorf("Unable to create %s file, skipping: %v", dst, err)
 		return
 	}
 	defer f.Close()
 	if err := tpl.Execute(f, b); err != nil {
-		glog.Errorf("Error processing %s template: %v", dst, err)
+		clog.Errorf("Error processing %s template: %v", dst, err)
 	}
 }

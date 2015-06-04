@@ -6,7 +6,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 
 	"github.com/openshift/source-to-image/pkg/errors"
 )
@@ -90,17 +90,21 @@ func (h *fs) Copy(sourcePath string, targetPath string) error {
 
 		targetPath = filepath.Join(targetPath, filepath.Base(sourcePath))
 	}
-	glog.V(5).Infof("cp -a %s %s", sourcePath, targetPath)
+	if clog.V(5) {
+		clog.Infof("cp -a %s %s", sourcePath, targetPath)
+	}
 	return h.runner.Run("cp", "-a", sourcePath, targetPath)
 }
 
 // RemoveDirectory removes the specified directory and all its contents
 func (h *fs) RemoveDirectory(dir string) error {
-	glog.V(2).Infof("Removing directory '%s'", dir)
+	if clog.V(2) {
+		clog.Infof("Removing directory '%s'", dir)
+	}
 
 	err := os.RemoveAll(dir)
 	if err != nil {
-		glog.Errorf("Error removing directory '%s': %v", dir, err)
+		clog.Errorf("Error removing directory '%s': %v", dir, err)
 	}
 	return err
 }

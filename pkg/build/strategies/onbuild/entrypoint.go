@@ -5,7 +5,7 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/util"
 )
 
@@ -28,7 +28,9 @@ func GuessEntrypoint(fs util.FileSystem, sourceDir string) (string, error) {
 			continue
 		}
 		if isValidEntrypoint(fs, filepath.Join(sourceDir, f.Name())) {
-			glog.V(2).Infof("Found valid ENTRYPOINT: %s", f.Name())
+			if clog.V(2) {
+				clog.Infof("Found valid ENTRYPOINT: %s", f.Name())
+			}
 			return f.Name(), nil
 		}
 	}

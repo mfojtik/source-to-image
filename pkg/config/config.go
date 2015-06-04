@@ -5,7 +5,7 @@ import (
 
 	"encoding/json"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
@@ -36,11 +36,15 @@ func Save(config *api.Config, cmd *cobra.Command) {
 	})
 	data, err := json.Marshal(c)
 	if err != nil {
-		glog.V(1).Infof("Unable to serialize to %s: %v", DefaultConfigPath, err)
+		if clog.V(1) {
+			clog.Infof("Unable to serialize to %s: %v", DefaultConfigPath, err)
+		}
 		return
 	}
 	if err := ioutil.WriteFile(DefaultConfigPath, data, 0644); err != nil {
-		glog.V(1).Infof("Unable to save %s: %v", DefaultConfigPath, err)
+		if clog.V(1) {
+			clog.Infof("Unable to save %s: %v", DefaultConfigPath, err)
+		}
 	}
 	return
 }
@@ -49,12 +53,16 @@ func Save(config *api.Config, cmd *cobra.Command) {
 func Restore(config *api.Config, cmd *cobra.Command) {
 	data, err := ioutil.ReadFile(DefaultConfigPath)
 	if err != nil {
-		glog.V(1).Infof("Unable to restore %s: %v", DefaultConfigPath, err)
+		if clog.V(1) {
+			clog.Infof("Unable to restore %s: %v", DefaultConfigPath, err)
+		}
 		return
 	}
 	c := Config{}
 	if err := json.Unmarshal(data, &c); err != nil {
-		glog.V(1).Infof("Unable to parse %s: %v", DefaultConfigPath, err)
+		if clog.V(1) {
+			clog.Infof("Unable to parse %s: %v", DefaultConfigPath, err)
+		}
 		return
 	}
 	config.BuilderImage = c.BuilderImage

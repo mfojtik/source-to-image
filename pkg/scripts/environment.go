@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/golang/glog"
+	clog "github.com/cockroachdb/cockroach/util/log"
 	"github.com/openshift/source-to-image/pkg/api"
 )
 
@@ -49,7 +49,9 @@ func GetEnvironment(config *api.Config) ([]Environment, error) {
 			Name:  strings.TrimSpace(parts[0]),
 			Value: strings.TrimSpace(parts[1]),
 		}
-		glog.V(1).Infof("Setting '%s' to '%s'", e.Name, e.Value)
+		if clog.V(1) {
+			clog.Infof("Setting '%s' to '%s'", e.Name, e.Value)
+		}
 		result = append(result, e)
 	}
 
