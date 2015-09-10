@@ -2,6 +2,7 @@ package git
 
 import (
 	"path/filepath"
+	"strings"
 
 	"github.com/golang/glog"
 	"github.com/openshift/source-to-image/pkg/api"
@@ -26,21 +27,27 @@ func (c *Clone) Download(config *api.Config) (*api.SourceInfo, error) {
 		if len(config.ContextDir) > 0 {
 			targetSourceDir = filepath.Join(config.WorkingDir, api.ContextTmp)
 		}
-		if cloneConfig.Recursive {
-			glog.V(2).Infof("Cloning sources and all GIT submodules into %q", targetSourceDir)
-		} else {
-			glog.V(2).Infof("Cloning sources into %q", targetSourceDir)
-		}
-		if err := c.Clone(config.Source, targetSourceDir, cloneConfig); err != nil {
-			glog.V(1).Infof("Git clone failed: %+v", err)
-			return nil, err
-		}
 
-		if len(config.Ref) > 0 {
-			if err := c.Checkout(targetSourceDir, config.Ref); err != nil {
+		// When using file:// copy instead of git clone
+		if strings.HasPrefix(config.Source, "file://") {
+		} else {
+
+			if cloneConfig.Recursive {
+				glog.V(2).Infof("Cloning sources and all GIT submodules into %q", targetSourceDir)
+			} else {
+				glog.V(2).Infof("Cloning sources into %q", targetSourceDir)
+			}
+			if err := c.Clone(config.Source, targetSourceDir, cloneConfig); err != nil {
+				glog.V(1).Infof("Git clone failed: %+v", err)
 				return nil, err
 			}
-			glog.V(1).Infof("Checked out %q", config.Ref)
+
+			if len(config.Ref) > 0 {
+				if err := c.Checkout(targetSourceDir, config.Ref); err != nil {
+					return nil, err
+				}
+				glog.V(1).Infof("Checked out %q", config.Ref)
+			}
 		}
 
 		if len(config.ContextDir) > 0 {
