@@ -32,58 +32,58 @@ const (
 	DefaultPreviousImagePullPolicy = PullAlways
 )
 
-// Config contains essential fields for performing build.
-type Config struct {
-	// DisplayName is a result image display-name label. This defaults to the
-	// output image name.
-	DisplayName string
-
-	// Description is a result image description label. The default is no
-	// description.
-	Description string
-
-	// BuilderImage describes which image is used for building the result images.
-	BuilderImage string
-
-	// BuilderImageVersion provides optional version information about the builder image.
-	BuilderImageVersion string
-
-	// BuilderBaseImageVersion provides optional version information about the builder base image.
-	BuilderBaseImageVersion string
-
-	// DockerConfig describes how to access host docker daemon.
-	DockerConfig *DockerConfig
-
-	// DockerCfgPath provides the path to the .dockercfg file
-	DockerCfgPath string
-
-	// PullAuthentication holds the authentication information for pulling the
-	// Docker images from private repositories
-	PullAuthentication docker.AuthConfiguration
-
-	// IncrementalAuthentication holds the authentication information for pulling the
-	// previous image from private repositories
-	IncrementalAuthentication docker.AuthConfiguration
-
-	// DockerNetworkMode is used to set the docker network setting to --net=container:<id>
-	// when the builder is invoked from a container.
-	DockerNetworkMode DockerNetworkMode
-
-	// PreserveWorkingDir describes if working directory should be left after processing.
-	PreserveWorkingDir bool
-
-	// DisableRecursive disables the --recursive option for the git clone that
-	// allows to use the GIT without requiring the git submodule to be called.
-	DisableRecursive bool
-
-	// Source URL describing the location of sources used to build the result image.
-	Source string
+// SourceConfig describes the repository configuration
+type SourceConfig struct {
+	// URI describing the location of sources used to build the result image.
+	URI string
 
 	// Ref is a tag/branch to be used for build.
 	Ref string
 
+	// NoRecursive disables the --recursive option for the git clone that
+	// allows to use the GIT without requiring the git submodule to be called.
+	NoRecursive bool
+
+	// Specify a relative directory inside the application repository that should
+	// be used as a root directory for the application.
+	ContextDir string
+
+	// WorkingDir describes temporary directory used for downloading sources,
+	// scripts and tar operations.
+	WorkingDir string
+
+	// WorkingSourceDir describes the subdirectory off of WorkingDir set up during
+	// the repo download that is later used as the root for ignore processing
+	WorkingSourceDir string
+}
+
+type OutputConfig struct {
 	// Tag is a result image tag name.
 	Tag string
+
+	// DisplayName is a result image display-name label. This defaults to the
+	// output image name.
+	DisplayName string
+
+	// Description is a result image description label. The default is no description.
+	Description string
+
+	// CallbackURL is a URL which is called upon successful build to inform about that fact.
+	CallbackURL string
+
+	// LabelNamespace provides the namespace under which the labels will be generated.
+	LabelNamespace string
+}
+
+type BuildConfig struct {
+	// Image is the name of the Docker image we use as a builder image
+	Image string
+
+	// ImageVersion provides optional version information about the builder image.
+	ImageVersion string
+
+	// BaseImageVersion provides optional version information about the builder base image.
+	BaseImageVersion string
 
 	// BuilderPullPolicy specifies when to pull the builder image
 	BuilderPullPolicy PullPolicy
@@ -92,63 +92,59 @@ type Config struct {
 	// when doing incremental build
 	PreviousImagePullPolicy PullPolicy
 
-	// ForcePull defines if the builder image should be always pulled or not.
-	// This is now deprecated by BuilderPullPolicy and will be removed soon.
-	// Setting this to 'true' equals setting BuilderPullPolicy to 'PullAlways'.
-	// Setting this to 'false' equals setting BuilderPullPolicy to 'PullIfNotPresent'
-	ForcePull bool
-
 	// Incremental describes whether to try to perform incremental build.
-	Incremental bool
+	IsIncremental bool
 
 	// RemovePreviousImage describes if previous image should be removed after successful build.
 	// This applies only to incremental builds.
 	RemovePreviousImage bool
 
+	// ForcePull defines if the builder image should be always pulled or not.
+	// DEPRECATED: Use the BuilderPullPolicy instead of ForcePull
+	// Setting this to 'true' equals setting BuilderPullPolicy to 'PullAlways'.
+	// Setting this to 'false' equals setting BuilderPullPolicy to 'PullIfNotPresent'
+	ForcePull bool
+
 	// Environment is a map of environment variables to be passed to the image.
 	Environment map[string]string
 
-	// EnvironmentFile provides the path to a file with list of environment
-	// variables.
-	EnvironmentFile string
+	// AssembleUser specifies the user to run the assemble script in container
+	AssembleUser string
 
-	// LabelNamespace provides the namespace under which the labels will be generated.
-	LabelNamespace string
-
-	// CallbackURL is a URL which is called upon successful build to inform about that fact.
-	CallbackURL string
-
-	// ScriptsURL is a URL describing the localization of STI scripts used during build process.
-	ScriptsURL string
-
-	// Destination specifies a location where the untar operation will place its artifacts.
-	Destination string
-
-	// WorkingDir describes temporary directory used for downloading sources, scripts and tar operations.
-	WorkingDir string
-
-	// WorkingSourceDir describes the subdirectory off of WorkingDir set up during the repo download
-	// that is later used as the root for ignore processing
-	WorkingSourceDir string
-
-	// LayeredBuild describes if this is build which layered scripts and sources on top of BuilderImage.
-	LayeredBuild bool
-
-	// Operate quietly. Progress and assemble script output are not reported, only fatal errors.
-	// (default: false).
-	Quiet bool
-
-	// Specify a relative directory inside the application repository that should
-	// be used as a root directory for the application.
-	ContextDir string
+	// LayeredBuild describes if this is build which layered scripts and sources
+	// on top of BuilderImage.
+	IsLayered bool
 
 	// AllowedUIDs is a list of user ranges of users allowed to run the builder image.
 	// If a range is specified and the builder image uses a non-numeric user or a user
 	// that is outside the specified range, then the build fails.
 	AllowedUIDs user.RangeList
 
-	// AssembleUser specifies the user to run the assemble script in container
-	AssembleUser string
+	// ScriptsURI is a URI describing the location of the S2I scripts used during
+	// build process.
+	ScriptsURI string
+
+	// Destination specifies a location where the untar operation will place its artifacts.
+	Destination string
+}
+
+// Config contains essential fields for performing build.
+type Config struct {
+	// Source is a repository configuration
+	Source *SourceConfig
+
+	// Build contains the build specific configuration
+	Build *BuildConfig
+
+	// Result describes the result image
+	Output *OutputConfig
+
+	// DockerConfig describes how to access host docker daemon.
+	DockerConfig *DockerConfig
+
+	// Operate quietly. Progress and assemble script output are not reported, only fatal errors.
+	// (default: false).
+	Quiet bool
 
 	// RunImage will trigger a "docker run ..." invocation of the produced image so the user
 	// can see if it operates as he would expect
@@ -160,6 +156,21 @@ type Config struct {
 
 // DockerConfig contains the configuration for a Docker connection
 type DockerConfig struct {
+	// NetworkMode is used to set the docker network setting to --net=container:<id>
+	// when the builder is invoked from a container.
+	NetworkMode DockerNetworkMode
+
+	// PullAuthentication holds the authentication information for pulling the
+	// Docker images from private repositories
+	PullAuthentication docker.AuthConfiguration
+
+	// IncrementalAuthentication holds the authentication information for pulling the
+	// previous image from private repositories
+	IncrementalAuthentication docker.AuthConfiguration
+
+	// Path provides the path to the .dockercfg file
+	Path string
+
 	// Endpoint is the docker network endpoint or socket
 	Endpoint string
 
@@ -191,7 +202,6 @@ type Result struct {
 
 // InstallResult structure describes the result of install operation
 type InstallResult struct {
-
 	// Script describes which script this result refers to
 	Script string
 
