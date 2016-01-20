@@ -72,6 +72,8 @@ type Docker interface {
 	UploadToContainer(srcPath, destPath, name string) error
 	ChangeContainerFilesOwner(containerName, username string, files []string) error
 	RemoveContainerFiles(containerName string, files []string) error
+	StreamToContainer(containerName string, inputStream io.Reader) error
+	WaitContainer(id string) error
 	Ping() error
 }
 
@@ -169,6 +171,31 @@ func New(config *api.DockerConfig, auth docker.AuthConfiguration) (Docker, error
 		client:   client,
 		pullAuth: auth,
 	}, nil
+}
+
+// StreamToContainer streams to container standard input.
+func (d *stiDocker) StreamToContainer(id string, reader io.Reader) error {
+	glog.Infof("Streaming data to %q", id)
+	success := make(chan struct{})
+	opts := docker.AttachToContainerOptions{
+		Container:   id,
+		Success:     success,
+		Stream:      true,
+		Stdin:       true,
+		InputStream: reader,
+	}
+	var err error
+	go func() {
+		err = d.client.AttachToContainer(opts)
+	}()
+	<-success
+	return err
+}
+
+// StartContainer starts an existing container.
+func (d *stiDocker) WaitContainer(id string) error {
+	_, err := d.client.WaitContainer(id)
+	return err
 }
 
 // StartContainer starts an existing container.
@@ -613,7 +640,7 @@ func runContainerWait(wg *sync.WaitGroup, d *stiDocker, container *docker.Contai
 		return err
 	}
 
-	glog.V(2).Infof("Container exited")
+	glog.V(2).Infof("Container %q exited", container.ID)
 	if exitCode != 0 {
 		return errors.NewContainerError(container.Name, exitCode, "")
 	}
@@ -666,7 +693,6 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 	if err != nil {
 		return err
 	}
-	defer d.RemoveContainer(container.ID)
 
 	glog.V(2).Infof("Attaching to container")
 	// creating / piping the channels in runContainerAttach lead to unintended hangs
@@ -685,15 +711,18 @@ func (d *stiDocker) RunContainer(opts RunContainerOptions) (err error) {
 	}
 
 	if opts.TargetImage {
-
 		runContainerDockerRun(container, d, image)
-
 	} else {
 		werr := runContainerWait(wg, d, container)
 		if werr != nil {
 			return werr
 		}
 	}
+
+	defer func() {
+		glog.V(5).Infof("Removing container %q", container.ID)
+		d.RemoveContainer(container.ID)
+	}()
 
 	if opts.PostExec != nil {
 		glog.V(2).Infof("Invoking postExecution function")

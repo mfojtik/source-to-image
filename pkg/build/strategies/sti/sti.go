@@ -470,28 +470,18 @@ func (b *STI) Execute(command string, user string, config *api.Config) error {
 		User:            user,
 		PostExec:        b.postExecutor,
 		NetworkMode:     string(config.DockerNetworkMode),
+		Stdin:           bufio.NewReader(os.Stdin),
 	}
 
-	// If there are injections specified, override the original assemble script
-	// and wait till all injections are uploaded into the container that runs the
-	// assemble script.
+	var existingContainerID string
 	if len(config.Injections) > 0 && command == api.Assemble {
-		workdir, err := b.docker.GetImageWorkdir(config.BuilderImage)
-		if err != nil {
-			return err
-		}
-		util.FixInjectionsWithRelativePath(workdir, &config.Injections)
-		injectedFiles, err := util.ExpandInjectedFiles(config.Injections)
-		if err != nil {
-			return err
-		}
-		glog.V(5).Infof("Waiting for injected files to be copied into assemble container...")
-		lastFileInjected := injectedFiles[len(injectedFiles)-1]
-		opts.CommandOverrides = func(cmd string) string {
-			return fmt.Sprintf("while [ ! -f %q ]; do sleep 0.5; done; %s", lastFileInjected, cmd)
-		}
-		originalOnStart := opts.OnStart
 		opts.OnStart = func(containerID string) error {
+			workdir, err := b.docker.GetImageWorkdir(config.BuilderImage)
+			if err != nil {
+				return err
+			}
+			util.FixInjectionsWithRelativePath(workdir, &config.Injections)
+			injectedFiles, err := util.ExpandInjectedFiles(config.Injections)
 			if err != nil {
 				return err
 			}
@@ -505,11 +495,10 @@ func (b *STI) Execute(command string, user string, config *api.Config) error {
 					return err
 				}
 			}
-			if originalOnStart != nil {
-				return originalOnStart(containerID)
-			}
-			return nil
+			existingContainerID = containerID
+			return b.docker.KillContainer(containerID)
 		}
+		b.docker.RunContainer(opts)
 	}
 
 	if !config.LayeredBuild {
@@ -562,9 +551,24 @@ func (b *STI) Execute(command string, user string, config *api.Config) error {
 
 	go dockerpkg.StreamContainerIO(errReader, &errOutput, glog.Error)
 
-	err = b.docker.RunContainer(opts)
-	if e, ok := err.(errors.ContainerError); ok {
-		return errors.NewContainerError(config.BuilderImage, e.ErrorCode, errOutput)
+	if len(existingContainerID) > 0 {
+		if err := b.docker.StartContainer(existingContainerID, nil); err != nil {
+			if e, ok := err.(errors.ContainerError); ok {
+				return errors.NewContainerError(config.BuilderImage, e.ErrorCode, errOutput)
+			}
+			return err
+		}
+		glog.Infof("Streaming to container")
+		if err := b.docker.StreamToContainer(existingContainerID, opts.Stdin); err != nil {
+			return err
+		}
+		glog.Infof("Waiting for container")
+		return b.docker.WaitContainer(existingContainerID)
+	} else {
+		err = b.docker.RunContainer(opts)
+		if e, ok := err.(errors.ContainerError); ok {
+			return errors.NewContainerError(config.BuilderImage, e.ErrorCode, errOutput)
+		}
 	}
 	return err
 }
